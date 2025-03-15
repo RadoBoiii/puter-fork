@@ -133,7 +133,7 @@ class NotificationService extends BaseService {
                 route: '/mark-' + ep_name,
                 methods: ['POST'],
                 handler: async (req, res) => {
-                    // TODO: validate uid
+                    // Validates uid
                     if ( typeof req.body.uid !== 'string' ) {
                         throw APIError.create('field_invalid', null, {
                             key: 'uid',
@@ -142,6 +142,7 @@ class NotificationService extends BaseService {
                         })
                     }
                     
+                    // Updates acknowledgment timestamp in database
                     const ack_ts = Math.floor(Date.now() / 1000);
                     await this.db.write(
                         'UPDATE `notification` SET ' + col_name + ' = ? ' +
@@ -150,6 +151,7 @@ class NotificationService extends BaseService {
                         [ack_ts, req.body.uid, req.user.id],
                     );
 
+                    // Emits event for GUI update
                     svc_event.emit('outer.gui.notif.ack', {
                         user_id_list: [req.user.id],
                         response: {
