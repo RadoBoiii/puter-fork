@@ -46,17 +46,13 @@ function UIWindowNotifications(options = {}) {
     h += `</div>`;
     h += `<div class="notification-sidebar-content">`;
     
-    // Container for notifications with loading state
+    // Container for notifications without loading state
     h += `<div class="notification-history-container">`;
-    h += `<div class="notification-history-loading">Loading notifications...</div>`;
-    h += `<div class="notification-history-list" style="display: none;"></div>`;
+    h += `<div class="notification-history-list"></div>`;
     h += `<div class="notification-history-empty" style="display: none;">
             <p>You don't have any notifications yet.</p>
           </div>`;
-    h += `<div class="notification-load-more" style="display: none;">
-            <div class="notification-load-more-spinner"></div>
-            Loading more notifications...
-          </div>`;
+    h += `<div class="notification-load-more" style="display: none;">Load more notifications...</div>`;
     h += `</div>`;
     
     h += `</div>`; 
@@ -71,39 +67,72 @@ function UIWindowNotifications(options = {}) {
         $(el_sidebar).addClass('active');
     });
 
-    // Handle close button click
-    $(el_sidebar).find('.notification-sidebar-close').on('click', () => {
-        $(el_sidebar).removeClass('active');
-        setTimeout(() => {
-            $(el_sidebar).remove();
-        }, 300);
-    });
-
-    // Handle click outside sidebar
-    $(document).on('mousedown.notification-sidebar', (e) => {
-        if (!$(e.target).closest('.notification-sidebar').length && 
-            !$(e.target).closest('.notifications-history-btn').length) {
-            $(el_sidebar).removeClass('active');
-            setTimeout(() => {
-                $(el_sidebar).remove();
-            }, 300);
-            $(document).off('mousedown.notification-sidebar');
-        }
-    });
-    
     // Notification state
     let currentPage = 1;
     let isLoading = false;
-    let hasMoreNotifications = true;
+    let hasMoreNotifications = false;
     let pageSize = 20;
+    let notificationInterval = null;
+    let hasLoadedInitially = false;
     
     // Function to render notifications
     function renderNotifications(notifications, append = false) {
         const container = $(el_sidebar).find('.notification-history-list');
+        const emptyState = $(el_sidebar).find('.notification-history-empty');
         
         if (!append) {
             container.empty();
         }
+        
+        // Check for empty state
+        if (!notifications || notifications.length === 0) {
+            if (!append && !hasLoadedInitially) {
+                // Show placeholder notifications only on initial empty load
+                const placeholderNotifications = [
+                    {
+                        uid: 'placeholder-1',
+                        notification: {
+                            title: 'Welcome to Puter',
+                            text: 'Thanks for joining! Explore our features and get started with cloud storage.',
+                            icon: 'info.svg'
+                        },
+                        created_at: Math.floor(Date.now() / 1000),
+                        read: false
+                    },
+                    {
+                        uid: 'placeholder-2',
+                        notification: {
+                            title: 'File Shared Successfully',
+                            text: 'Your document "example.pdf" has been shared with collaborator@example.com',
+                            icon: 'share.svg'
+                        },
+                        created_at: Math.floor(Date.now() / 1000) - 3600,
+                        read: true
+                    },
+                    {
+                        uid: 'placeholder-3',
+                        notification: {
+                            title: 'Storage Space Alert',
+                            text: 'You\'re approaching your storage limit. Consider upgrading your plan.',
+                            icon: 'warning.svg'
+                        },
+                        created_at: Math.floor(Date.now() / 1000) - 7200,
+                        read: false
+                    }
+                ];
+                
+                container.hide();
+                emptyState.show();
+                renderNotifications(placeholderNotifications, false);
+            }
+            $(el_sidebar).find('.notification-load-more').hide();
+            hasMoreNotifications = false;
+            return;
+        }
+
+        // Hide empty state if we have notifications
+        emptyState.hide();
+        container.show();
         
         // Render notifications
         notifications.forEach(item => {
@@ -191,12 +220,9 @@ function UIWindowNotifications(options = {}) {
             container.append(notifEl);
         });
         
-        // Hide loading and show content
-        $(el_sidebar).find('.notification-history-loading').hide();
-        $(el_sidebar).find('.notification-history-list').show();
-        
-        // Update load more visibility
+        // Update load more button visibility
         $(el_sidebar).find('.notification-load-more').toggle(hasMoreNotifications);
+        hasLoadedInitially = true;
     }
     
     // Function to load notifications
@@ -205,16 +231,6 @@ function UIWindowNotifications(options = {}) {
         
         try {
             isLoading = true;
-            
-            if (!append) {
-                // Show initial loading state
-                $(el_sidebar).find('.notification-history-loading').show();
-                $(el_sidebar).find('.notification-history-list').hide();
-                $(el_sidebar).find('.notification-history-empty').hide();
-            } else {
-                // Show load more spinner
-                $(el_sidebar).find('.notification-load-more').show();
-            }
             
             // Fetch notifications from the API
             const response = await fetch(`${window.api_origin}/notif/history?page=${page}&pageSize=${pageSize}`, {
@@ -235,79 +251,80 @@ function UIWindowNotifications(options = {}) {
             currentPage = data.pagination.page;
             hasMoreNotifications = currentPage < data.pagination.totalPages;
             
-            // Check if there are any notifications
-            if (!data.notifications || (data.notifications.length === 0 && !append)) {
-                // Show placeholder notifications if no real notifications exist
-                const placeholderNotifications = [
-                    {
-                        uid: 'placeholder-1',
-                        notification: {
-                            title: 'Welcome to Puter',
-                            text: 'Thanks for joining! Explore our features and get started with cloud storage.',
-                            icon: 'info.svg'
-                        },
-                        created_at: Math.floor(Date.now() / 1000),
-                        read: false
-                    },
-                    {
-                        uid: 'placeholder-2',
-                        notification: {
-                            title: 'File Shared Successfully',
-                            text: 'Your document "example.pdf" has been shared with collaborator@example.com',
-                            icon: 'share.svg'
-                        },
-                        created_at: Math.floor(Date.now() / 1000) - 3600,
-                        read: true
-                    },
-                    {
-                        uid: 'placeholder-3',
-                        notification: {
-                            title: 'Storage Space Alert',
-                            text: 'You\'re approaching your storage limit. Consider upgrading your plan.',
-                            icon: 'warning.svg'
-                        },
-                        created_at: Math.floor(Date.now() / 1000) - 7200,
-                        read: false
-                    }
-                ];
-                
-                renderNotifications(placeholderNotifications, false);
-                return;
-            }
-            
-            // Render actual notifications
+            // Render notifications
             renderNotifications(data.notifications, append);
             
         } catch (error) {
             console.error('Failed to load notifications:', error);
-            UIAlert({
-                message: 'Failed to load notifications. Please try again.',
-                buttons: [{
-                    label: 'OK'
-                }]
-            });
-            $(el_sidebar).find('.notification-history-loading').hide();
+            if (!append) {
+                // Show error only for initial load
+                UIAlert({
+                    message: 'Failed to load notifications. Please try again.',
+                    buttons: [{
+                        label: 'OK'
+                    }]
+                });
+            }
             $(el_sidebar).find('.notification-load-more').hide();
         } finally {
             isLoading = false;
         }
     }
     
-    // Handle infinite scroll
-    const container = $(el_sidebar).find('.notification-history-container');
-    container.on('scroll', function() {
-        const scrollHeight = this.scrollHeight;
-        const scrollTop = this.scrollTop;
-        const clientHeight = this.clientHeight;
-        
-        // Load more when user scrolls near bottom
-        if (scrollHeight - scrollTop - clientHeight < 100 && hasMoreNotifications && !isLoading) {
+    // Handle load more button click
+    $(el_sidebar).find('.notification-load-more').on('click', function() {
+        if (!isLoading && hasMoreNotifications) {
             loadNotifications(currentPage + 1, true);
         }
     });
     
-    // Load initial notifications
+    // Setup periodic notification check
+    function startNotificationInterval() {
+        // Clear any existing interval
+        if (notificationInterval) {
+            clearInterval(notificationInterval);
+        }
+        
+        // Set new interval to check for notifications every 30 seconds
+        notificationInterval = setInterval(() => {
+            if (!isLoading) {
+                loadNotifications(1, false);
+            }
+        }, 30000); // 30 seconds
+    }
+    
+    // Cleanup function
+    function cleanup() {
+        if (notificationInterval) {
+            clearInterval(notificationInterval);
+        }
+        $(document).off('mousedown.notification-sidebar');
+    }
+    
+    // Update close handlers to include cleanup
+    $(el_sidebar).find('.notification-sidebar-close').on('click', () => {
+        cleanup();
+        $(el_sidebar).removeClass('active');
+        setTimeout(() => {
+            $(el_sidebar).remove();
+        }, 300);
+    });
+    
+    $(document).on('mousedown.notification-sidebar', (e) => {
+        if (!$(e.target).closest('.notification-sidebar').length && 
+            !$(e.target).closest('.notifications-history-btn').length) {
+            cleanup();
+            $(el_sidebar).removeClass('active');
+            setTimeout(() => {
+                $(el_sidebar).remove();
+            }, 300);
+            $(document).off('mousedown.notification-sidebar');
+        }
+    });
+    
+    // Load initial notifications and start interval
     loadNotifications(1, false);
+    startNotificationInterval();
     
     return el_sidebar;
 }

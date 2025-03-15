@@ -4960,26 +4960,18 @@ Notifications History Manager
     padding: 12px;
     color: #666;
     cursor: pointer;
-    background: #f5f5f5;
-    border-top: 1px solid #eee;
-    transition: background-color 0.2s ease;
+    background: rgba(0, 0, 0, 0.02);
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
 }
 
 .notification-load-more:hover {
-    background: #ebebeb;
+    background: rgba(0, 0, 0, 0.04);
     color: #333;
 }
 
 .notification-load-more-spinner {
-    display: inline-block;
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(0, 0, 0, 0.1);
-    border-top-color: #2196F3;
-    border-radius: 50%;
-    animation: notification-spinner 0.8s linear infinite;
-    margin-right: 8px;
-    vertical-align: middle;
+    display: none;
 }
 
 @keyframes notification-spinner {
