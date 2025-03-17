@@ -129,14 +129,78 @@ function UIWindowNotifications(options = {}) {
                     <div class="notification-text">${notif.text || ''}</div>
                     <div class="notification-status">
                         ${item.acknowledged ? 
-                            '<span class="acknowledged-status">Acknowledged</span>' : 
-                            '<span class="unacknowledged-status">Not Acknowledged</span>'
+                            '<span class="acknowledged-status">Read</span>' : 
+                            '<span class="unacknowledged-status">Unread</span>'
                         }
                     </div>
                 </div>
             `);
 
             container.append(notifEl);
+
+            // Click handler for notifications
+            notifEl.on('click', async function() {
+                if (!item.acknowledged) {
+                    try {
+                        notifLogger.debug('Marking notification as acknowledged:', item.uid);
+                        
+                        const response = await fetch(`${window.api_origin}/notif/mark-acknowledged`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${window.auth_token}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                uid: item.uid
+                            })
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('Failed to mark notification as acknowledged');
+                        }
+
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            // Update UI state
+                            $(this)
+                                .removeClass('unacknowledged')
+                                .addClass('acknowledged');
+                            
+                            $(this)
+                                .find('.notification-status')
+                                .html('<span class="acknowledged-status">Read</span>');
+
+                            // Update item state
+                            item.acknowledged = true;
+                            
+                            // Visual feedback animation
+                            $(this).css({
+                                'transition': 'all 0.3s ease',
+                                'background-color': 'rgba(76, 175, 80, 0.1)'
+                            });
+                            
+                            setTimeout(() => {
+                                $(this).css({
+                                    'background-color': '',
+                                    'transition': ''
+                                });
+                            }, 300);
+
+                            // Update notification badge count
+                            if (typeof window.update_notification_badge_count === 'function') {
+                                window.update_notification_badge_count();
+                            }
+                        }
+                    } catch (error) {
+                        notifLogger.error('Failed to mark notification as acknowledged:', error);
+                        UIAlert({
+                            message: 'Failed to mark notification as read. Please try again.',
+                            buttons: [{ label: 'OK' }]
+                        });
+                    }
+                }
+            });
         });
 
         // Update load more button visibility
