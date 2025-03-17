@@ -67,11 +67,11 @@ function UIWindowNotifications(options = {}) {
     $('body').append(h);
     el_sidebar = $('.notification-sidebar')[0];
     
-    // Notification state
+    // State variables for pagination
     let currentPage = 1;
     let hasMoreNotifications = true;
-    let pageSize = 20;
     let isLoadingMore = false;
+    let pageSize = 4;
     
     // Function to render notifications
     function renderNotifications(notifications, append = false) {
@@ -85,108 +85,36 @@ function UIWindowNotifications(options = {}) {
         const container = $(el_sidebar).find('.notification-history-list');
         const emptyState = $(el_sidebar).find('.notification-history-empty');
         
-        notifLogger.debug('Initial DOM state:', {
-            containerExists: container.length > 0,
-            emptyStateExists: emptyState.length > 0,
-            containerVisible: container.is(':visible'),
-            emptyStateVisible: emptyState.is(':visible')
-        });
-
-        // Always show container initially
-        container.show();
-        emptyState.hide();
-        
         if (!append) {
-            notifLogger.debug('Clearing container');
             container.empty();
         }
-        
+
         if (!notifications || notifications.length === 0) {
-            notifLogger.info('No notifications, rendering placeholders');
-            const placeholderNotifications = [
-                {
-                    uid: 'placeholder-1',
-                    notification: {
-                        title: 'Welcome to Puter',
-                        text: 'Thanks for joining! Explore our features and get started with cloud storage.',
-                        icon: 'info.svg'
-                    },
-                    created_at: Math.floor(Date.now() / 1000),
-                    read: false
-                },
-                {
-                    uid: 'placeholder-2',
-                    notification: {
-                        title: 'File Shared Successfully',
-                        text: 'Your document "example.pdf" has been shared with collaborator@example.com',
-                        icon: 'share.svg'
-                    },
-                    created_at: Math.floor(Date.now() / 1000) - 3600,
-                    read: true
-                },
-                {
-                    uid: 'placeholder-3',
-                    notification: {
-                        title: 'Storage Space Alert',
-                        text: 'You\'re approaching your storage limit. Consider upgrading your plan.',
-                        icon: 'warning.svg'
-                    },
-                    created_at: Math.floor(Date.now() / 1000) - 7200,
-                    read: false
-                }
-            ];
-            
-            notifLogger.debug('Rendering placeholders:', placeholderNotifications);
-            
-            // Render placeholders directly
-            placeholderNotifications.forEach((item, index) => {
-                notifLogger.debug(`Rendering placeholder ${index + 1}:`, item);
-                const notifEl = $(`
-                    <div class="notification-history-item ${item.read ? 'read' : 'unread'}" data-uid="${item.uid}">
-                        <div class="notification-header">
-                            <div class="notification-icon">
-                                <img src="${window.icons[item.notification.icon] || window.icons['bell.svg']}" alt="Notification">
-                            </div>
-                            <div class="notification-title">
-                                ${item.notification.title || 'Notification'}
-                            </div>
-                            <div class="notification-date">
-                                ${new Date(item.created_at * 1000).toLocaleString()}
-                            </div>
-                        </div>
-                        <div class="notification-text">${item.notification.text || ''}</div>
-                        <div class="notification-status">
-                            ${item.read ? 
-                                '<span class="read-status">Read</span>' : 
-                                '<span class="unread-status">Unread</span>'
-                            }
-                        </div>
-                    </div>
-                `);
-                container.append(notifEl);
-            });
-            
-            $(el_sidebar).find('.notification-load-more').hide();
-            notifLogger.debug('=== RENDER NOTIFICATIONS END (Placeholders) ===');
+            if (!append) {
+                container.hide();
+                emptyState.show();
+                $(el_sidebar).find('.notification-load-more').hide();
+            }
+            notifLogger.groupEnd();
             return;
         }
 
-        notifLogger.debug('Rendering notifications:', notifications);
-        emptyState.hide();
+        // Show container and hide empty state
         container.show();
-        
+        emptyState.hide();
+
         notifications.forEach((item, index) => {
             notifLogger.debug(`Rendering notification ${index + 1}`, {
                 uid: item.uid,
                 title: item.notification?.title,
-                isRead: item.read
+                isAcknowledged: item.acknowledged
             });
+
             const notif = item.notification;
             const date = new Date(item.created_at * 1000).toLocaleString();
-            const isPlaceholder = item.uid.startsWith('placeholder-');
             
             const notifEl = $(`
-                <div class="notification-history-item ${item.read ? 'read' : 'unread'}" data-uid="${item.uid}">
+                <div class="notification-history-item ${item.acknowledged ? 'acknowledged' : 'unacknowledged'}" data-uid="${item.uid}">
                     <div class="notification-header">
                         <div class="notification-icon">
                             <img src="${window.icons[notif.icon] || window.icons['bell.svg']}" alt="Notification">
@@ -200,88 +128,29 @@ function UIWindowNotifications(options = {}) {
                     </div>
                     <div class="notification-text">${notif.text || ''}</div>
                     <div class="notification-status">
-                        ${item.read ? 
-                            '<span class="read-status">Read</span>' : 
-                            '<span class="unread-status">Unread</span>'
+                        ${item.acknowledged ? 
+                            '<span class="acknowledged-status">Acknowledged</span>' : 
+                            '<span class="unacknowledged-status">Not Acknowledged</span>'
                         }
                     </div>
                 </div>
             `);
-            
-            // Click handler for notifications
-            if (!isPlaceholder || !item.read) {
-                notifEl.on('click', async function() {
-                    if (!item.read) {
-                        try {
-                            if (!isPlaceholder) {
-                                const response = await fetch(`${window.api_origin}/notif/mark-notification-read`, {
-                                    method: 'POST',
-                                    headers: {
-                                        'Authorization': `Bearer ${window.auth_token}`,
-                                        'Content-Type': 'application/json'
-                                    },
-                                    body: JSON.stringify({
-                                        uid: item.uid
-                                    })
-                                });
 
-                                if (!response.ok) {
-                                    throw new Error('Failed to mark notification as read');
-                                }
-                            }
-                            
-                            // Update UI state
-                            $(this).removeClass('unread').addClass('read');
-                            $(this).find('.notification-status').html('<span class="read-status">Read</span>');
-                            item.read = true;
-                            
-                            if (!isPlaceholder) {
-                                window.update_notification_badge_count();
-                            }
-                            
-                            // Animate the transition
-                            $(this).css({
-                                'transition': 'background-color 0.3s ease',
-                                'background-color': 'rgba(76, 175, 80, 0.1)'
-                            });
-                            setTimeout(() => {
-                                $(this).css({
-                                    'background-color': '',
-                                    'transition': ''
-                                });
-                            }, 300);
-                            
-                        } catch (error) {
-                            notifLogger.error('Failed to mark notification as read:', error);
-                            UIAlert({
-                                message: 'Failed to mark notification as read. Please try again.',
-                                buttons: [{ label: 'OK' }]
-                            });
-                        }
-                    }
-                });
-            }
-            
             container.append(notifEl);
         });
-        
+
+        // Update load more button visibility
         $(el_sidebar).find('.notification-load-more').toggle(hasMoreNotifications);
-        notifLogger.debug('Final render state:', {
-            containerVisible: container.is(':visible'),
-            emptyStateVisible: emptyState.is(':visible'),
-            loadMoreVisible: $(el_sidebar).find('.notification-load-more').is(':visible')
-        });
-        notifLogger.debug('Render complete', {
-            hasMore: hasMoreNotifications,
-            currentPage,
-            visibleNotifications: $(el_sidebar).find('.notification-history-item').length
-        });
+        
         notifLogger.groupEnd();
     }
     
     // Function to load notifications
     async function loadNotifications(page = 1, append = false) {
-        if (isLoadingMore) return;
+        if (isLoadingMore) {
+            notifLogger.debug('Already loading notifications, skipping request');
+            return;
+        }
 
         isLoadingMore = true;
         const loadMoreBtn = $(el_sidebar).find('.notification-load-more');
@@ -291,16 +160,10 @@ function UIWindowNotifications(options = {}) {
         notifLogger.info('Loading notifications', {
             page,
             append,
-            userId: window.user?.id
+            pageSize
         });
 
         try {
-            if (!window.user?.id) {
-                notifLogger.error('No user ID found');
-                throw new Error('User ID not found');
-            }
-
-            // Use the API endpoint instead of direct SQL
             const response = await fetch(`${window.api_origin}/notif/history?page=${page}&pageSize=${pageSize}`, {
                 method: 'GET',
                 headers: {
@@ -310,20 +173,15 @@ function UIWindowNotifications(options = {}) {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to fetch notifications');
+                throw new Error(`Failed to fetch notifications: ${response.status}`);
             }
 
             const data = await response.json();
             notifLogger.info('Notification response', { 
                 total: data.pagination.total,
-                page: data.pagination.page 
+                currentPage: data.pagination.page,
+                totalPages: data.pagination.totalPages
             });
-
-            if (!data.notifications || data.notifications.length === 0) {
-                notifLogger.info('No notifications found, showing placeholders');
-                renderNotifications([], false);
-                return;
-            }
 
             // Update pagination state
             currentPage = data.pagination.page;
@@ -332,25 +190,31 @@ function UIWindowNotifications(options = {}) {
             // Render notifications
             renderNotifications(data.notifications, append);
             
+            // Update load more button visibility and text
+            const loadMoreBtn = $(el_sidebar).find('.notification-load-more');
+            if (hasMoreNotifications) {
+                loadMoreBtn.html('Load more notifications...').show();
+            } else {
+                loadMoreBtn.hide();
+            }
+
         } catch (error) {
-            notifLogger.error('Failed to load notifications', {
-                error: error.message,
-                stack: error.stack
-            });
+            notifLogger.error('Failed to load notifications', error);
+            const loadMoreBtn = $(el_sidebar).find('.notification-load-more');
+            loadMoreBtn.html('Error loading notifications. Click to retry.');
+            
             UIAlert({
                 message: 'Failed to load notifications. Please try again.',
                 buttons: [{ label: 'OK' }]
             });
-            renderNotifications([], false);
         } finally {
             isLoadingMore = false;
-            loadMoreBtn.html('Load more notifications...');
             notifLogger.groupEnd();
         }
     }
     
-    // Handle load more button click with debounce
-    const debouncedLoadMore = _.debounce(function() {
+    // Add debounced load more button click handler
+    const debouncedLoadMore = _.debounce(() => {
         if (hasMoreNotifications && !isLoadingMore) {
             loadNotifications(currentPage + 1, true);
         }
@@ -363,8 +227,8 @@ function UIWindowNotifications(options = {}) {
         });
         debouncedLoadMore();
     });
-    
-    // Handle infinite scroll with debounce
+
+    // Add debounced infinite scroll
     const container = $(el_sidebar).find('.notification-history-container');
     container.on('scroll', _.debounce(function() {
         const scrollHeight = this.scrollHeight;
@@ -372,6 +236,12 @@ function UIWindowNotifications(options = {}) {
         const clientHeight = this.clientHeight;
         
         if (scrollHeight - scrollTop - clientHeight < 100 && hasMoreNotifications && !isLoadingMore) {
+            notifLogger.debug('Near bottom, loading more', { 
+                scrollHeight, 
+                scrollTop, 
+                clientHeight,
+                currentPage 
+            });
             loadNotifications(currentPage + 1, true);
         }
     }, 300));
@@ -396,7 +266,7 @@ function UIWindowNotifications(options = {}) {
         }
     });
     
-    // Load initial notifications
+    // Initial load
     loadNotifications(1, false);
     
     notifLogger.info('Sidebar initialization complete', {

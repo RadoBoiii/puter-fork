@@ -2887,37 +2887,40 @@ label {
 }
 
 .notification-history-item {
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    padding: 15px;
     border-radius: 8px;
-    padding: 16px;
-    box-shadow: 
-        0 2px 6px rgba(0, 0, 0, 0.05),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: #f8f9fa;
+    border: 1px solid #eee;
     transition: all 0.2s ease;
     cursor: pointer;
 }
 
+.notification-history-item.unacknowledged {
+    background: #fff;
+    border-left: 3px solid #2196F3;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.notification-history-item.acknowledged {
+    opacity: 0.8;
+    border-left: 3px solid #4CAF50;
+}
+
 .notification-history-item:hover {
-    transform: translateY(-1px);
-    background: rgba(255, 255, 255, 0.8);
-    box-shadow: 
-        0 4px 12px rgba(0, 0, 0, 0.08),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+    background: #f5f5f5;
 }
 
-.notification-history-item.unread {
-    background: rgba(59, 130, 246, 0.08);
-    border-left: 3px solid rgba(59, 130, 246, 0.8);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+.notification-status {
+    margin-top: 8px;
+    font-size: 12px;
 }
 
-.notification-history-item.read {
-    opacity: 0.75;
-    background: rgba(255, 255, 255, 0.5);
+.acknowledged-status {
+    color: #4CAF50;
+}
+
+.unacknowledged-status {
+    color: #2196F3;
 }
 
 .notification-load-more {
@@ -5414,37 +5417,40 @@ Notifications History Manager
 }
 
 .notification-history-item {
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    padding: 15px;
     border-radius: 8px;
-    padding: 16px;
-    box-shadow: 
-        0 2px 6px rgba(0, 0, 0, 0.05),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: #f8f9fa;
+    border: 1px solid #eee;
     transition: all 0.2s ease;
     cursor: pointer;
 }
 
+.notification-history-item.unacknowledged {
+    background: #fff;
+    border-left: 3px solid #2196F3;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.notification-history-item.acknowledged {
+    opacity: 0.8;
+    border-left: 3px solid #4CAF50;
+}
+
 .notification-history-item:hover {
-    transform: translateY(-1px);
-    background: rgba(255, 255, 255, 0.8);
-    box-shadow: 
-        0 4px 12px rgba(0, 0, 0, 0.08),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+    background: #f5f5f5;
 }
 
-.notification-history-item.unread {
-    background: rgba(59, 130, 246, 0.08);
-    border-left: 3px solid rgba(59, 130, 246, 0.8);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+.notification-status {
+    margin-top: 8px;
+    font-size: 12px;
 }
 
-.notification-history-item.read {
-    opacity: 0.75;
-    background: rgba(255, 255, 255, 0.5);
+.acknowledged-status {
+    color: #4CAF50;
+}
+
+.unacknowledged-status {
+    color: #2196F3;
 }
 
 .notification-load-more {

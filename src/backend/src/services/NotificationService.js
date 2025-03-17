@@ -132,57 +132,48 @@ class NotificationService extends BaseService {
 
         const svc_event = this.services.get('event');
         
-        [['ack','acknowledged'],['read','read']].forEach(([ep_name, col_name]) => {
-            Endpoint({
-                route: '/mark-' + ep_name,
-                methods: ['POST'],
-                handler: async (req, res) => {
+        Endpoint({
+            route: '/mark-acknowledged',
+            methods: ['POST'],
+            handler: async (req, res) => {
+                try {
                     // Validates uid
-                    if ( typeof req.body.uid !== 'string' ) {
+                    if (typeof req.body.uid !== 'string') {
                         throw APIError.create('field_invalid', null, {
                             key: 'uid',
                             expected: 'a valid UUID',
                             got: 'non-string value'
-                        })
+                        });
                     }
                     
                     // Updates acknowledgment timestamp in database
                     const ack_ts = Math.floor(Date.now() / 1000);
-                    await this.db.write(
-                        'UPDATE `notification` SET ' + col_name + ' = ? ' +
+                    const result = await this.db.write(
+                        'UPDATE notification SET acknowledged = ? ' +
                         'WHERE uid = ? AND user_id = ? ' +
                         'LIMIT 1',
-                        [ack_ts, req.body.uid, req.user.id],
+                        [ack_ts, req.body.uid, req.user.id]
                     );
+
+                    if (result.changes === 0) {
+                        throw new Error('Notification not found or already acknowledged');
+                    }
 
                     // Emits event for GUI update
                     svc_event.emit('outer.gui.notif.ack', {
                         user_id_list: [req.user.id],
                         response: {
                             uid: req.body.uid,
+                            acknowledged: true,
+                            acknowledged_at: ack_ts
                         },
                     });
                     
-                    res.json({});
-                }
-            }).attach(router);
-        });
-
-        // Add endpoint to mark notification as read
-        Endpoint({
-            route: '/mark-notification-read',
-            methods: ['POST'],
-            handler: async (req, res) => {
-                try {
-                    const { uid } = req.body;
-                    const timestamp = Math.floor(Date.now() / 1000);
-                    
-                    await this.db.write(
-                        'UPDATE notification SET acknowledged = ? WHERE uid = ? AND user_id = ?',
-                        [timestamp, uid, req.user.id]
-                    );
-
-                    res.json({ success: true });
+                    res.json({ 
+                        success: true,
+                        acknowledged: true,
+                        acknowledged_at: ack_ts 
+                    });
                 } catch (error) {
                     res.status(500).json({ 
                         success: false, 
@@ -192,14 +183,14 @@ class NotificationService extends BaseService {
             }
         }).attach(router);
 
-        // Enhance the existing history endpoint
+        // Update the history endpoint to fetch all notifications
         Endpoint({
             route: '/history',
             methods: ['GET'],
             handler: async (req, res) => {
                 try {
                     const page = parseInt(req.query.page) || 1;
-                    const pageSize = parseInt(req.query.pageSize) || 20;
+                    const pageSize = parseInt(req.query.pageSize) || 4;
                     const offset = (page - 1) * pageSize;
 
                     // Get total count for pagination
@@ -220,9 +211,9 @@ class NotificationService extends BaseService {
                         });
                     }
 
-                    // Get notifications for current page
+                    // Get ALL notifications with acknowledged status, ordered by most recent first
                     const notifications = await this.db.read(
-                        'SELECT uid, value, created_at, acknowledged, shown ' +
+                        'SELECT uid, value, created_at, acknowledged ' +
                         'FROM notification ' +
                         'WHERE user_id = ? ' +
                         'ORDER BY created_at DESC ' +
@@ -230,12 +221,13 @@ class NotificationService extends BaseService {
                         [req.user.id, pageSize, offset]
                     );
 
-                    // Format notifications for client
+                    // Format notifications for client, including acknowledged status
                     const formattedNotifications = notifications.map(notif => ({
                         uid: notif.uid,
                         notification: JSON.parse(notif.value),
                         created_at: Math.floor(new Date(notif.created_at).getTime() / 1000),
-                        read: !!notif.acknowledged
+                        acknowledged: notif.acknowledged !== null,
+                        acknowledged_at: notif.acknowledged ? Math.floor(new Date(notif.acknowledged).getTime() / 1000) : null
                     }));
 
                     res.json({
@@ -292,7 +284,7 @@ class NotificationService extends BaseService {
     * @async
     */
     async do_on_user_connected ({ user }) {
-        // query the users unread notifications
+        // Query unacknowledged notifications
         const notifications = await this.db.read(
             'SELECT * FROM `notification` ' +
             'WHERE user_id=? AND shown IS NULL AND acknowledged IS NULL ' +
@@ -300,12 +292,12 @@ class NotificationService extends BaseService {
             [user.id]
         );
 
-        // set all the notifications to "shown"
+        // Set notifications as shown
         const shown_ts = Math.floor(Date.now() / 1000);
         await this.db.write(
             'UPDATE `notification` ' +
             'SET shown = ? ' +
-            'WHERE user_id=? AND shown IS NULL AND acknowledged IS NULL ',
+            'WHERE user_id=? AND shown IS NULL AND acknowledged IS NULL',
             [shown_ts, user.id]
         );
         
