@@ -168,48 +168,91 @@ class NotificationService extends BaseService {
             }).attach(router);
         });
 
-        // Add the history endpoint
+        // Add endpoint to mark notification as read
+        Endpoint({
+            route: '/mark-notification-read',
+            methods: ['POST'],
+            handler: async (req, res) => {
+                try {
+                    const { uid } = req.body;
+                    const timestamp = Math.floor(Date.now() / 1000);
+                    
+                    await this.db.write(
+                        'UPDATE notification SET acknowledged = ? WHERE uid = ? AND user_id = ?',
+                        [timestamp, uid, req.user.id]
+                    );
+
+                    res.json({ success: true });
+                } catch (error) {
+                    res.status(500).json({ 
+                        success: false, 
+                        error: error.message 
+                    });
+                }
+            }
+        }).attach(router);
+
+        // Enhance the existing history endpoint
         Endpoint({
             route: '/history',
             methods: ['GET'],
             handler: async (req, res) => {
-                const page = parseInt(req.query.page) || 1;
-                const pageSize = parseInt(req.query.pageSize) || 20;
-                const offset = (page - 1) * pageSize;
+                try {
+                    const page = parseInt(req.query.page) || 1;
+                    const pageSize = parseInt(req.query.pageSize) || 20;
+                    const offset = (page - 1) * pageSize;
 
-                // Get total count for pagination
-                const [countResult] = await this.db.read(
-                    'SELECT COUNT(*) as total FROM notification WHERE user_id = ?',
-                    [req.user.id]
-                );
+                    // Get total count for pagination
+                    const [countResult] = await this.db.read(
+                        'SELECT COUNT(*) as total FROM notification WHERE user_id = ?',
+                        [req.user.id]
+                    );
 
-                // Get notifications for current page
-                const notifications = await this.db.read(
-                    'SELECT uid, value, created_at, acknowledged, shown ' +
-                    'FROM notification ' +
-                    'WHERE user_id = ? ' +
-                    'ORDER BY created_at DESC ' +
-                    'LIMIT ? OFFSET ?',
-                    [req.user.id, pageSize, offset]
-                );
-
-                // Format notifications for client
-                const formattedNotifications = notifications.map(notif => ({
-                    uid: notif.uid,
-                    notification: JSON.parse(notif.value),
-                    created_at: Math.floor(new Date(notif.created_at).getTime() / 1000),
-                    read: !!notif.acknowledged
-                }));
-
-                res.json({
-                    notifications: formattedNotifications,
-                    pagination: {
-                        page,
-                        pageSize,
-                        totalPages: Math.ceil(countResult.total / pageSize),
-                        total: countResult.total
+                    if (!countResult || countResult.total === 0) {
+                        return res.json({
+                            notifications: [],
+                            pagination: {
+                                page,
+                                pageSize,
+                                totalPages: 0,
+                                total: 0
+                            }
+                        });
                     }
-                });
+
+                    // Get notifications for current page
+                    const notifications = await this.db.read(
+                        'SELECT uid, value, created_at, acknowledged, shown ' +
+                        'FROM notification ' +
+                        'WHERE user_id = ? ' +
+                        'ORDER BY created_at DESC ' +
+                        'LIMIT ? OFFSET ?',
+                        [req.user.id, pageSize, offset]
+                    );
+
+                    // Format notifications for client
+                    const formattedNotifications = notifications.map(notif => ({
+                        uid: notif.uid,
+                        notification: JSON.parse(notif.value),
+                        created_at: Math.floor(new Date(notif.created_at).getTime() / 1000),
+                        read: !!notif.acknowledged
+                    }));
+
+                    res.json({
+                        notifications: formattedNotifications,
+                        pagination: {
+                            page,
+                            pageSize,
+                            totalPages: Math.ceil(countResult.total / pageSize),
+                            total: countResult.total
+                        }
+                    });
+                } catch (error) {
+                    res.status(500).json({ 
+                        success: false, 
+                        error: error.message 
+                    });
+                }
             }
         }).attach(router);
     }
@@ -314,7 +357,6 @@ class NotificationService extends BaseService {
     * @param {string} params.response.uid - The unique identifier of the notification.
     */
     async on_sent_to_user ({ user_id, response }) {
-        console.log('GOT IT AND IT WORKED!!!', user_id, response);
         const shown_ts = Math.floor(Date.now() / 1000);
         if ( this.notifs_pending_write[response.uid] ) {
             await this.notifs_pending_write[response.uid];

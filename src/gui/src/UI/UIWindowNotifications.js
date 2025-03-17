@@ -19,8 +19,6 @@
 
 import UIWindow from './UIWindow.js'
 import UIAlert from './UIAlert.js'
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
 import { LogService } from '../modules/core/LogService.js';
 
 // Create a logger instance for notifications
@@ -215,20 +213,20 @@ function UIWindowNotifications(options = {}) {
                     if (!item.read) {
                         try {
                             if (!isPlaceholder) {
-                                const db = await open({
-                                    filename: window.dbPath || './puter-database.sqlite',
-                                    driver: sqlite3.Database
+                                const response = await fetch(`${window.api_origin}/notif/mark-notification-read`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Authorization': `Bearer ${window.auth_token}`,
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({
+                                        uid: item.uid
+                                    })
                                 });
 
-                                const timestamp = Math.floor(Date.now() / 1000);
-                                await db.run(
-                                    'UPDATE notification SET acknowledged = ? WHERE uid = ? AND user_id = ?',
-                                    timestamp,
-                                    item.uid,
-                                    window.user.id
-                                );
-
-                                await db.close();
+                                if (!response.ok) {
+                                    throw new Error('Failed to mark notification as read');
+                                }
                             }
                             
                             // Update UI state
@@ -253,7 +251,7 @@ function UIWindowNotifications(options = {}) {
                             }, 300);
                             
                         } catch (error) {
-                            console.error('Failed to mark notification as read:', error);
+                            notifLogger.error('Failed to mark notification as read:', error);
                             UIAlert({
                                 message: 'Failed to mark notification as read. Please try again.',
                                 buttons: [{ label: 'OK' }]
@@ -298,77 +296,38 @@ function UIWindowNotifications(options = {}) {
                 throw new Error('User ID not found');
             }
 
-            const db = await open({
-                filename: window.dbPath || './puter-database.sqlite',
-                driver: sqlite3.Database
+            // Use the API endpoint instead of direct SQL
+            const response = await fetch(`${window.api_origin}/notif/history?page=${page}&pageSize=${pageSize}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${window.auth_token}`,
+                    'Content-Type': 'application/json'
+                }
             });
-            notifLogger.debug('Database connection opened');
 
-            const countResult = await db.get(
-                'SELECT COUNT(*) as total FROM notification WHERE user_id = ?',
-                window.user.id
-            );
-            notifLogger.info('Notification count', { total: countResult?.total });
-
-            if (!countResult || countResult.total === 0) {
-                notifLogger.info('No notifications found, showing placeholders');
-                await db.close();
-                renderNotifications([], false); // This will trigger placeholder display
-                isLoadingMore = false;
-                return;
+            if (!response.ok) {
+                throw new Error('Failed to fetch notifications');
             }
 
-            const offset = (page - 1) * pageSize;
-            const totalPages = Math.ceil(countResult.total / pageSize);
-
-            // Get notifications
-            const notifications = await db.all(
-                `SELECT uid, value, created_at, acknowledged, shown 
-                 FROM notification 
-                 WHERE user_id = ? 
-                 ORDER BY created_at DESC 
-                 LIMIT ? OFFSET ?`,
-                window.user.id,
-                pageSize,
-                offset
-            );
-            notifLogger.debug('Retrieved notifications', {
-                count: notifications?.length,
-                page,
-                pageSize
+            const data = await response.json();
+            notifLogger.info('Notification response', { 
+                total: data.pagination.total,
+                page: data.pagination.page 
             });
 
-            if (!notifications || notifications.length === 0) {
-                notifLogger.info('No notifications returned from query, showing placeholders');
-                await db.close();
+            if (!data.notifications || data.notifications.length === 0) {
+                notifLogger.info('No notifications found, showing placeholders');
                 renderNotifications([], false);
                 isLoadingMore = false;
                 return;
             }
 
-            // Format notifications
-            const formattedNotifications = notifications.map(notif => {
-                try {
-                    return {
-                        uid: notif.uid,
-                        notification: JSON.parse(notif.value),
-                        created_at: Math.floor(new Date(notif.created_at).getTime() / 1000),
-                        read: !!notif.acknowledged
-                    };
-                } catch (parseError) {
-                    console.error('Failed to parse notification:', notif, parseError);
-                    return null;
-                }
-            }).filter(Boolean);
-
             // Update pagination state
-            currentPage = page;
-            hasMoreNotifications = page < totalPages;
+            currentPage = data.pagination.page;
+            hasMoreNotifications = currentPage < data.pagination.totalPages;
 
             // Render notifications
-            renderNotifications(formattedNotifications, append);
-
-            await db.close();
+            renderNotifications(data.notifications, append);
             
         } catch (error) {
             notifLogger.error('Failed to load notifications', {
