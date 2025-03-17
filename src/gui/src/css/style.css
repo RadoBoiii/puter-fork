@@ -4875,6 +4875,7 @@ Notifications History Manager
 }
 
 .notification-history-list {
+    display: block;
     min-height: 100px;
 }
 
@@ -5051,4 +5052,31 @@ Notifications History Manager
     line-height: 16px;
     font-weight: bold;
     box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Remove or override any loading-related styles */
+.notification-history-loading,
+.notification-load-more-spinner {
+    display: none !important;
+}
+
+.notification-history-list {
+    display: block !important;
+    min-height: 100px;
+}
+
+/* Force hide loading states */
+.notification-history-loading,
+.notification-load-more-spinner {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* Force show notification list */
+.notification-history-list {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
