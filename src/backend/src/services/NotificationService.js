@@ -1,5 +1,4 @@
-// METADATA // {"ai-commented":{"service":"mistral","model":"mistral-large-latest"}}
-/*
+/**
  * Copyright (C) 2024-present Puter Technologies Inc.
  *
  * This file is part of Puter.
@@ -24,12 +23,18 @@ const { TeePromise } = require('@heyputer/putility').libs.promise;
 const BaseService = require("./BaseService");
 const { DB_WRITE } = require("./database/consts");
 
+/**
+ * Selects a user by username for notification targeting
+ */
 const UsernameNotifSelector = username => async (self) => {
     const svc_getUser = self.services.get('get-user');
     const user = await svc_getUser.get_user({ username });
     return [user.id];
 };
 
+/**
+ * Selects a user by ID for notification targeting
+ */
 const UserIDNotifSelector = user_id => async (self) => {
     return [user_id];
 };
@@ -81,6 +86,7 @@ class NotificationService extends BaseService {
     */
     _construct () {
         this.merged_on_user_connected_ = {};
+        this.notifs_pending_write = {};
     }
 
 
@@ -114,8 +120,6 @@ class NotificationService extends BaseService {
         svc_event.on('sent-to-user.notif.message', (_, o) => {
             this.on_sent_to_user(o);
         })
-        
-        this.notifs_pending_write = {};
     }
     
     ['__on_install.routes'] (_, { app }) {
@@ -315,12 +319,12 @@ class NotificationService extends BaseService {
         if ( this.notifs_pending_write[response.uid] ) {
             await this.notifs_pending_write[response.uid];
         }
-        await this.db.write(...ll([
+        await this.db.write(
             'UPDATE `notification` ' +
             'SET shown = ? ' +
             'WHERE user_id=? AND uid=?',
             [shown_ts, user_id, response.uid]
-        ]));
+        );
     }
     
 

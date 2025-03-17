@@ -21,23 +21,10 @@ import UIWindow from './UIWindow.js'
 import UIAlert from './UIAlert.js'
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
-import { LogService } from '/Users/sriujjwalreddyb/puter-fork/src/backend/src/modules/core/LogService.js';
-
-const DEBUG = true;
+import { LogService } from '../modules/core/LogService.js';
 
 // Create a logger instance for notifications
 const notifLogger = new LogService().create('NOTIF');
-
-// Replace the debugLog function with this
-function debugLog(...args) {
-    if (DEBUG) {
-        notifLogger.debug(args[0], {
-            data: args.slice(1),
-            timestamp: new Date().toISOString(),
-            component: 'UIWindowNotifications'
-        });
-    }
-}
 
 /**
  * Creates a notification sidebar that displays the user's notification history
@@ -58,7 +45,7 @@ function UIWindowNotifications(options = {}) {
     let h = '';
     let el_sidebar;
     
-    // Create sidebar structure - WITHOUT loading states
+    // Create sidebar structure
     h += `<div class="notification-sidebar">`;
     h += `<div class="notification-sidebar-header">`;
     h += `<div class="notification-sidebar-title">Notifications</div>`;
@@ -81,15 +68,11 @@ function UIWindowNotifications(options = {}) {
     $('body').append(h);
     el_sidebar = $('.notification-sidebar')[0];
     
-    // Immediately remove any loading states and ensure list is visible
-    $('.notification-history-loading').remove(); // Remove loading div completely
-    $('.notification-history-list').show(); // Force show the list
-    $('.notification-load-more-spinner').remove(); // Remove spinner
-    
     // Notification state
     let currentPage = 1;
     let hasMoreNotifications = true;
     let pageSize = 20;
+    let isLoadingMore = false;
     
     // Function to render notifications
     function renderNotifications(notifications, append = false) {
@@ -103,22 +86,19 @@ function UIWindowNotifications(options = {}) {
         const container = $(el_sidebar).find('.notification-history-list');
         const emptyState = $(el_sidebar).find('.notification-history-empty');
         
-        debugLog('Initial DOM state:', {
+        notifLogger.debug('Initial DOM state:', {
             containerExists: container.length > 0,
             emptyStateExists: emptyState.length > 0,
             containerVisible: container.is(':visible'),
             emptyStateVisible: emptyState.is(':visible')
         });
 
-        // Force remove loading state
-        $('.notification-history-loading').remove();
-        
         // Always show container initially
         container.show();
         emptyState.hide();
         
         if (!append) {
-            debugLog('Clearing container');
+            notifLogger.debug('Clearing container');
             container.empty();
         }
         
@@ -157,11 +137,11 @@ function UIWindowNotifications(options = {}) {
                 }
             ];
             
-            debugLog('Rendering placeholders:', placeholderNotifications);
+            notifLogger.debug('Rendering placeholders:', placeholderNotifications);
             
             // Render placeholders directly
             placeholderNotifications.forEach((item, index) => {
-                debugLog(`Rendering placeholder ${index + 1}:`, item);
+                notifLogger.debug(`Rendering placeholder ${index + 1}:`, item);
                 const notifEl = $(`
                     <div class="notification-history-item ${item.read ? 'read' : 'unread'}" data-uid="${item.uid}">
                         <div class="notification-header">
@@ -188,11 +168,11 @@ function UIWindowNotifications(options = {}) {
             });
             
             $(el_sidebar).find('.notification-load-more').hide();
-            debugLog('=== RENDER NOTIFICATIONS END (Placeholders) ===');
+            notifLogger.debug('=== RENDER NOTIFICATIONS END (Placeholders) ===');
             return;
         }
 
-        debugLog('Rendering notifications:', notifications);
+        notifLogger.debug('Rendering notifications:', notifications);
         emptyState.hide();
         container.show();
         
@@ -236,7 +216,7 @@ function UIWindowNotifications(options = {}) {
                         try {
                             if (!isPlaceholder) {
                                 const db = await open({
-                                    filename: '/Users/sriujjwalreddyb/puter-fork/volatile/runtime/puter-database.sqlite',
+                                    filename: window.dbPath || './puter-database.sqlite',
                                     driver: sqlite3.Database
                                 });
 
@@ -287,7 +267,7 @@ function UIWindowNotifications(options = {}) {
         });
         
         $(el_sidebar).find('.notification-load-more').toggle(hasMoreNotifications);
-        debugLog('Final render state:', {
+        notifLogger.debug('Final render state:', {
             containerVisible: container.is(':visible'),
             emptyStateVisible: emptyState.is(':visible'),
             loadMoreVisible: $(el_sidebar).find('.notification-load-more').is(':visible')
@@ -302,6 +282,9 @@ function UIWindowNotifications(options = {}) {
     
     // Function to load notifications
     async function loadNotifications(page = 1, append = false) {
+        if (isLoadingMore) return;
+
+        isLoadingMore = true;
         notifLogger.group('Load Notifications');
         notifLogger.info('Loading notifications', {
             page,
@@ -316,7 +299,7 @@ function UIWindowNotifications(options = {}) {
             }
 
             const db = await open({
-                filename: '/Users/sriujjwalreddyb/puter-fork/volatile/runtime/puter-database.sqlite',
+                filename: window.dbPath || './puter-database.sqlite',
                 driver: sqlite3.Database
             });
             notifLogger.debug('Database connection opened');
@@ -331,6 +314,7 @@ function UIWindowNotifications(options = {}) {
                 notifLogger.info('No notifications found, showing placeholders');
                 await db.close();
                 renderNotifications([], false); // This will trigger placeholder display
+                isLoadingMore = false;
                 return;
             }
 
@@ -358,6 +342,7 @@ function UIWindowNotifications(options = {}) {
                 notifLogger.info('No notifications returned from query, showing placeholders');
                 await db.close();
                 renderNotifications([], false);
+                isLoadingMore = false;
                 return;
             }
 
@@ -392,6 +377,7 @@ function UIWindowNotifications(options = {}) {
             });
             renderNotifications([], false);
         } finally {
+            isLoadingMore = false;
             notifLogger.groupEnd();
         }
     }
@@ -402,7 +388,7 @@ function UIWindowNotifications(options = {}) {
             currentPage,
             hasMore: hasMoreNotifications
         });
-        if (hasMoreNotifications) {
+        if (hasMoreNotifications && !isLoadingMore) {
             loadNotifications(currentPage + 1, true);
         }
     });
@@ -414,7 +400,7 @@ function UIWindowNotifications(options = {}) {
         const scrollTop = this.scrollTop;
         const clientHeight = this.clientHeight;
         
-        if (scrollHeight - scrollTop - clientHeight < 100 && hasMoreNotifications) {
+        if (scrollHeight - scrollTop - clientHeight < 100 && hasMoreNotifications && !isLoadingMore) {
             loadNotifications(currentPage + 1, true);
         }
     });
@@ -442,10 +428,6 @@ function UIWindowNotifications(options = {}) {
     // Load initial notifications
     loadNotifications(1, false);
     
-    // After creating sidebar
-    $('body').append(h);
-    el_sidebar = $('.notification-sidebar')[0];
-    
     notifLogger.info('Sidebar initialization complete', {
         exists: !!el_sidebar,
         elements: {
@@ -453,11 +435,6 @@ function UIWindowNotifications(options = {}) {
             empty: $(el_sidebar).find('.notification-history-empty').length
         }
     });
-
-    // Force cleanup of loading states
-    $('.notification-history-loading').remove();
-    $('.notification-history-list').show();
-    $('.notification-load-more-spinner').remove();
     
     return el_sidebar;
 }
