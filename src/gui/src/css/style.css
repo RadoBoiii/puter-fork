@@ -3049,6 +3049,10 @@ label {
     background: rgba(0, 0, 0, 0.02);
     border-top: 1px solid rgba(0, 0, 0, 0.05);
     transition: all 0.2s ease;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .notification-load-more:hover {
@@ -3057,7 +3061,43 @@ label {
 }
 
 .notification-load-more-spinner {
-    display: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #666;
+}
+
+.notification-load-more-spinner::before {
+    content: '';
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-top-color: #2196F3;
+    border-radius: 50%;
+    animation: notification-spinner 0.8s linear infinite;
+}
+
+/* Ensure the notification container scrolls properly */
+.notification-history-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: calc(100vh - 60px); /* Adjust based on header height */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+.notification-history-list {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 100px;
 }
 
 @keyframes notification-spinner {
@@ -5455,6 +5495,10 @@ Notifications History Manager
     background: rgba(0, 0, 0, 0.02);
     border-top: 1px solid rgba(0, 0, 0, 0.05);
     transition: all 0.2s ease;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .notification-load-more:hover {
@@ -5463,7 +5507,43 @@ Notifications History Manager
 }
 
 .notification-load-more-spinner {
-    display: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #666;
+}
+
+.notification-load-more-spinner::before {
+    content: '';
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-top-color: #2196F3;
+    border-radius: 50%;
+    animation: notification-spinner 0.8s linear infinite;
+}
+
+/* Ensure the notification container scrolls properly */
+.notification-history-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: calc(100vh - 60px); /* Adjust based on header height */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+.notification-history-list {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 100px;
 }
 
 @keyframes notification-spinner {

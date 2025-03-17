@@ -20,6 +20,7 @@
 import UIWindow from './UIWindow.js'
 import UIAlert from './UIAlert.js'
 import { LogService } from '../modules/core/LogService.js';
+import _ from 'lodash';
 
 // Create a logger instance for notifications
 const notifLogger = new LogService().create('NOTIF');
@@ -283,6 +284,9 @@ function UIWindowNotifications(options = {}) {
         if (isLoadingMore) return;
 
         isLoadingMore = true;
+        const loadMoreBtn = $(el_sidebar).find('.notification-load-more');
+        loadMoreBtn.html('<div class="notification-load-more-spinner">Loading...</div>');
+        
         notifLogger.group('Load Notifications');
         notifLogger.info('Loading notifications', {
             page,
@@ -318,7 +322,6 @@ function UIWindowNotifications(options = {}) {
             if (!data.notifications || data.notifications.length === 0) {
                 notifLogger.info('No notifications found, showing placeholders');
                 renderNotifications([], false);
-                isLoadingMore = false;
                 return;
             }
 
@@ -334,27 +337,36 @@ function UIWindowNotifications(options = {}) {
                 error: error.message,
                 stack: error.stack
             });
+            UIAlert({
+                message: 'Failed to load notifications. Please try again.',
+                buttons: [{ label: 'OK' }]
+            });
             renderNotifications([], false);
         } finally {
             isLoadingMore = false;
+            loadMoreBtn.html('Load more notifications...');
             notifLogger.groupEnd();
         }
     }
     
-    // Handle load more button click
+    // Handle load more button click with debounce
+    const debouncedLoadMore = _.debounce(function() {
+        if (hasMoreNotifications && !isLoadingMore) {
+            loadNotifications(currentPage + 1, true);
+        }
+    }, 300);
+
     $(el_sidebar).find('.notification-load-more').on('click', function() {
         notifLogger.debug('Load more clicked', {
             currentPage,
             hasMore: hasMoreNotifications
         });
-        if (hasMoreNotifications && !isLoadingMore) {
-            loadNotifications(currentPage + 1, true);
-        }
+        debouncedLoadMore();
     });
     
-    // Handle infinite scroll
+    // Handle infinite scroll with debounce
     const container = $(el_sidebar).find('.notification-history-container');
-    container.on('scroll', function() {
+    container.on('scroll', _.debounce(function() {
         const scrollHeight = this.scrollHeight;
         const scrollTop = this.scrollTop;
         const clientHeight = this.clientHeight;
@@ -362,7 +374,7 @@ function UIWindowNotifications(options = {}) {
         if (scrollHeight - scrollTop - clientHeight < 100 && hasMoreNotifications && !isLoadingMore) {
             loadNotifications(currentPage + 1, true);
         }
-    });
+    }, 300));
     
     // Handle close button click
     $(el_sidebar).find('.notification-sidebar-close').on('click', () => {
