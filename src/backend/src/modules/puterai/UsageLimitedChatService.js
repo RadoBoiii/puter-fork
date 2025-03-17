@@ -71,20 +71,13 @@ class UsageLimitedChatService extends BaseService {
             * @param {string} params.model - The model to use (unused)
             * @returns {Object|TypedValue} A chat completion response or streamed response
             */
-            async complete ({ messages, stream, model }) {
-                const usageLimitMessage = dedent(`
+            async complete ({ messages, stream, model, customLimitMessage }) {
+                const limitMessage = customLimitMessage || dedent(`
                     You have reached your AI usage limit for this account.
-                    
-                    To continue using our AI services, please consider:
-                    • Upgrading to a premium account
-                    • Purchasing additional AI credits
-                    • Waiting until your next billing cycle
-                    
-                    Visit ${this.global_config.origin}/plans for more information.
                 `);
                 
                 // If streaming is requested, return a streaming response
-                if (stream) {
+                if ( stream ) {
                     const streamObj = new PassThrough();
                     const retval = new TypedValue({
                         $: 'stream',
@@ -108,7 +101,7 @@ class UsageLimitedChatService extends BaseService {
                             index: 0,
                             delta: {
                                 type: 'text',
-                                text: usageLimitMessage,
+                                text: limitMessage,
                             },
                         });
                         
@@ -150,7 +143,7 @@ class UsageLimitedChatService extends BaseService {
                         "content": [
                             {
                                 "type": "text",
-                                "text": usageLimitMessage
+                                "text": limitMessage
                             }
                         ],
                         "stop_reason": "end_turn",
